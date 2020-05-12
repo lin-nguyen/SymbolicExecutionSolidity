@@ -67,6 +67,8 @@ class Node(dict):
             return ob.visitIdentifier(ast,c)
         if ast['type'] == 'NumberLiteral': 
             return ob.visitNumberLiteral(ast,c)
+        if ast['type'] == 'BooleanLiteral': 
+            return ob.visitBooleanLiteral(ast,c)
         
 class AstVisitor(SolidityVisitor):
 

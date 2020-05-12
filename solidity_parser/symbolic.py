@@ -30,18 +30,24 @@ class FullBranch:
         self.branch= branch
         self.head = head
         self.tail = tail
+
 class Symbol: 
-    def __init__(self, name, value):
+    def __init__(self, name, value, mType):
         self.name = name
         self.value = value
+        self.mType = mType
 class SymbolicExecution(BaseVisitor):
     global_envi = FullBranch([Branch([],[])], 0,1)
     syms = []
     def __init__ (self, ast): 
         self.ast = ast
+    def printSym(self, lstSym): 
+        print([(x.name, x.value, x.mType)for x in lstSym])
     def run(self): 
         self.visit(self.ast,SymbolicExecution.global_envi)
-        self.printc(SymbolicExecution.global_envi.branch)
+        #self.printSym(self.syms)
+        #self.printc(SymbolicExecution.global_envi.branch)
+        
     def _mapCommasToNulls(self, children):
         if not children or len(children) == 0:
             return []
@@ -94,7 +100,7 @@ class SymbolicExecution(BaseVisitor):
     def visitSourceUnit(self, ast,c):
         for x in range(0,len(ast)):
             self.visit(ast['children'][x],c) 
-        print(self.syms)
+        
     def visitPragmaDirective(self, ast, c): 
         return None
     def visitContractDefinition(self, ast, c):
@@ -107,15 +113,19 @@ class SymbolicExecution(BaseVisitor):
         return None
     def visitFunctionDefinition(self, ast,c):
         #listKey: ['type', 'name', 'parameters', 'returnParameters', 'body', 'visibility', 'modifiers', 'isConstructor', 'stateMutability']
+        params = ast['parameters']['parameters']
+        for x in params: 
+            self.syms.append(Symbol(x['name'], None,x['typeName']['name']))
+    
         self.visit(ast['body'], c)
     def visitStateVariableDeclaration(self, ast,c): 
         name = ast['variables'][0]['name']
         #iniVal = self.visit(ast['variables'][0]['initialValue'])
         expr= ast['variables'][0]['expression']
-        #self.printKeys(ast['variables'][0])
+        mType =ast['variables'][0]['typeName']['name']
         if expr!=None: 
             expr= self.visit(ast['variables'][0]['expression'],c)
-        self.syms.append(Symbol(name, expr))
+        self.syms.append(Symbol(name, expr,mType))
     def printKeys(self, ast): 
         print([ x for x in ast.keys() ])
     def visitBlock(self, ast, c):
@@ -168,3 +178,5 @@ class SymbolicExecution(BaseVisitor):
         return ast['name']
     def visitNumberLiteral(self,ast,c): 
         return ast['number']
+    def visitBooleanLiteral(self, ast,c):
+        return str(ast['value'])
