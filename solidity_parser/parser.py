@@ -69,6 +69,10 @@ class Node(dict):
             return ob.visitNumberLiteral(ast,c)
         if ast['type'] == 'BooleanLiteral': 
             return ob.visitBooleanLiteral(ast,c)
+        if ast['type'] == 'FunctionCall': 
+            return ob.visitFunctionCall(ast,c)
+        if ast['type'] == 'ForStatement': 
+            return ob.visitForStatement(ast,c)
         
 class AstVisitor(SolidityVisitor):
 

@@ -1,30 +1,37 @@
-pragma solidity >=0.4.24; 
-contract SimpleContract { 
-    int userBalance = 100; 
-    int adminBalance = 100; 
-    int userToken = 0; 
-    int adminToken = 1; 
-    int amountE=15;
-    int i ;
-    address userAdr = 0xAAAA;
-    address adminAdr = 0xBBBB;
-    bool check = false ;
-    function sendeth() public returns (string memory){
-        if (userBalance > amountE){
-            userBalance = userBalance - amountE;
-            adminBalance = adminBalance + amountE; 
-            check = true;
-            return "Success"; 
-        }
-        else{
-            if(check==false){
-                int i;
-                userBalance = userBalance - amountE*i;
-            }
-            else {
+pragma solidity ^0.4.24;
+contract escrow {
+   int userBalance = 100; 
+    bool check ;
+    //mapping (address => mapping(address=> transaction)) transactionInfo;
 
-            }
-        }
-        
+    
+
+function add(int a, int b) returns (int c) {
+  if(a==0){
+    if(b==0){}
+    else{}
+  }
+  else{}
+  }
+function mul(int a, int b) returns (int c) {
+  if (a==0){
+    c=add(a,b)+a;
+  }  
+  else{
+    if(a>=b){
+      c =a+ b;
     }
+    else {
+      for(int i=0; i<a; i++){
+      c  = 2/add(a,2);
+      }
+    }
+  }
+  if(b==1){
+    
+  }
+  else{
+
+  }
+  }
 }
