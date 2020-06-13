@@ -26,7 +26,7 @@ class Branch:
         self.Conds = listCond
         self.Stmts = listStatement
 class FullBranch: 
-    def __init__ (self, branch, head,tail, symsLocal=None, symsParam = None, returnVar = None, name = None):
+    def __init__ (self, branch, head,tail, symsLocal=None, symsParam = None, returnVar = None, name = None, globalSym = []):
         self.branch= branch
         self.head = head
         self.tail = tail
@@ -34,7 +34,7 @@ class FullBranch:
         self.symsParam = symsParam
         self.returnVar = returnVar  
         self.name = name
-
+        self.globalSym = globalSym
 
 class Symbol: 
     def __init__(self, name, value, mType):
@@ -42,10 +42,12 @@ class Symbol:
         self.value = value
         self.mType = mType
 class SymbolicExecution(BaseVisitor):
-    global_envi = FullBranch([Branch([],[])], 0,1)
+    global_envi = (FullBranch([Branch([],[])], 0,1), 1, 
+                    [('address','self'),('require', 'self')]) # scope = số lần tab
     syms = []
-    def __init__ (self, ast): 
+    def __init__ (self, ast, file ): 
         self.ast = ast
+        self.file = file
     def printSym(self, lstSym): 
         print([(x.name, x.value, x.mType)for x in lstSym])
     def run(self): 
@@ -53,34 +55,7 @@ class SymbolicExecution(BaseVisitor):
         return self.visit(self.ast,SymbolicExecution.global_envi)
         #self.printSym(self.syms)
         #self.printc(SymbolicExecution.global_envi.branch)
-        
-        
-    def _mapCommasToNulls(self, children):
-        if not children or len(children) == 0:
-            return []
-        values = []
-        comma = True
 
-        for el in children:
-            if comma:
-                if el.getText() == ',':
-                    values.append(None)
-                else:
-                    values.append(el)
-                    comma = False
-            else:
-                if el.getText() != ',':
-                    raise Exception('expected comma')
-
-                comma = True
-
-        if comma:
-            values.append(None)
-
-        return values
-    def _createNode(self, **kwargs):
-        ## todo: add loc!
-        return Node(**kwargs)
     def visit(self, ast, c):
         if ast is None:
             return None
@@ -89,26 +64,31 @@ class SymbolicExecution(BaseVisitor):
         #    return [super().visit(self,x,c) for x in ast  ]
         else:
             return super().visit(self,ast,c)
-    def _visit_nodes(self, nodes):
-        """
-        modified version of visitChildren() that returns an array of results
 
-        :param nodes:
-        :return:
-        """
-        allresults = []
-        result = self.defaultResult()
-        for c in nodes:
-            childResult = c.accept(self)
-            result = self.aggregateResult(result, childResult)
-            allresults.append(result)
-        return allresults
     # ********************************************************
     def visitSourceUnit(self, ast,c):
         #for x in range(0,len(ast)):
         #   self.visit(ast['children'][x],c) 
-        listFunc =self.visit(ast['children'][1],c) 
-        return listFunc
+        # children[0]: pragma 1
+        # children[1]: contract Ownable
+        # children[2]: pragma 2
+        # children[3]: contract BookStoreInit
+        # children[4]: pragma 3
+        # children[5]: contract BookStore
+        # getAll nameFunction
+        listF = c[2]+ self.getNameFunc(ast)
+        [self.visit(x,(c[0], c[1], listF )) for x in ast['children']]
+        #return listFunc
+    def getNameFunc(self, ast): 
+        lst=[]
+        for x in ast['children']: 
+            if x['type']=='ContractDefinition':
+                nodes = x['subNodes']
+                for node in nodes:
+                    if node['type']=='FunctionDefinition':
+                        if node['name']: 
+                            lst.append((node['name'], 'self'))
+        return lst                    
     def visitPragmaDirective(self, ast, c): 
         return None
     def visitContractDefinition(self, ast, c):
@@ -116,45 +96,97 @@ class SymbolicExecution(BaseVisitor):
         #return self.visit(ast['subNodes'], c)
         #print(ast['type'])
         #print([x['type'] for x in ast['subNodes']])
-        listFunc = []
+        #print(ast)
+        # some type :StateVariableDeclaration , 
+        # EventDefinition, FunctionDefinition, ModifierDefinition
+        # InheritanceSpecifier
+        InheritanceSpecifier = [x.baseName.namePath for x in ast.baseContracts] 
+        baseClass= ''
+        if InheritanceSpecifier: 
+            baseClass = '('
+            for x in InheritanceSpecifier: baseClass+= str (x) +','
+            baseClass = baseClass[:-1] + ')'
+        else: 
+            baseClass = '(base)'
+        # header class 
+        self.file.write("class " + ast.name +baseClass+":\n")    
         for x in ast['subNodes']:
-            if x['type'] == 'FunctionDefinition':
-                
-                newFunc = FullBranch([Branch([],[])], 0,1, [], [])
-                self.visit(x, newFunc)
-                listFunc.append(newFunc)
-            else: 
-                self.visit(x, c)
-        return listFunc
+            newFunc = (FullBranch([Branch([],[])], 0,1, [], [], globalSym=['ownerToOrderList'])
+                            ,1
+                            ,c[2]
+                            ,ast.name)    
+            self.visit(x, newFunc)
+              
+        
+    def visitModifierDefinition(self, ast, c): 
+        pass
+    def visitEventDefinition(self, ast, c):
+        pass 
     def printKeys(self, ast): 
         print([ x for x in ast.keys() ])
     def visitFunctionDefinition(self, ast,c):
         #'type', 'name', 'parameters', 
         #'returnParameters', 'body', 'visibility', 
         # 'modifiers', 'isConstructor', 'stateMutability'
-        if ast.isConstructor == True: return self.visitFunctionDefinitionConstructor( ast,c)
-        params = ast['parameters']['parameters']
-        for x in params: 
+        '''for x in params: 
             c.symsParam.append(Symbol(x['name'], None,x['typeName']['name']))
         self.printSym(c.symsParam)
+        
         c.returnVar = ( ast['returnParameters']['parameters'][0]['name'])
         c.name = ast['name']
-        self.visit(ast['body'], c)
+        '''
+        if ast['isConstructor'] == True: return self.visitFunctionDefinitionConstructor( ast,c)
+        params = ast['parameters']['parameters']
+        Name = ast['name']
+        params = ast['parameters']['parameters']
+        param = [self.visit(x, c) for x in params]
+        listArgu = ""
+        if param: 
+            for x in param: 
+                listArgu+= ','+ x
+        self.file.write('\tdef '+ Name +   '(self'+ listArgu+ '):\n')
+        if(Name =='SendToken'): self.file.write('\t\tsendtoken(_token,_quantity)\n')
+        self.visit(ast['body'],(c[0], c[1]+1, c[2], c[3]))
+        
+
     def visitFunctionCall(self, ast, c):
-        name = ast['expression']['name']
-        argu = [self.visit(x,c) for x in ast['arguments']]
+        name = self.visit(ast['expression'],c)
+        
+        if name == []: return '[]'
+        else: 
+            argu = [self.visit(x,c) for x in ast['arguments']]
         ret = name + '('
         if argu:
             for x in argu:
                 ret+= x+','
             ret = ret[:-1]
         ret+=')'
+        if (name,'self') in c[2]:
+            return 'self.'+ret    
         return ret
-    def visitFunctionDefinitionConstructor(self, ast,c):        
-        pass
+    def visitNewExpression(self, ast,c): 
+        return self.visit(ast['typeName'], c )
+    def visitArrayTypeName(self, ast, c): 
+        return []
+    def visitFunctionDefinitionConstructor(self, ast,c):  
+        params = ast['parameters']['parameters']
+        param = [self.visit(x, c) for x in params]
+        listArgu = ""
+        if param: 
+            for x in param: 
+                listArgu+= ','+ x
+        self.file.write('\tdef __init__(self'+ listArgu+ '):\n')
+        self.visit(ast['body'],(c[0], c[1]+1, c[2], c[3]))
+    def visitParameter(self, ast, c): 
+        return ast['name'] 
+
     def visitStateVariableDeclaration(self, ast,c): 
+        
         name = ast['variables'][0]['name']
-        #iniVal = self.visit(ast['variables'][0]['initialValue'])
+
+        iniVal = self.visit(ast['initialValue'],c)
+        if iniVal ==None: iniVal = 'None'
+        '''print( iniVal)
         expr= ast['variables'][0]['expression']
         mType =ast['variables'][0]['typeName']['name']
         if expr!=None: 
@@ -163,16 +195,33 @@ class SymbolicExecution(BaseVisitor):
             self.syms.append(Symbol(name, expr,mType))
         else: 
             c.symsLocal.append(Symbol(name, expr,mType))
-    
+            '''
+        if name not in c[0].globalSym: 
+
+            c[2].insert(0,(name, c[3])) 
+            self.file.write(self.Scope(c[1])+name+'='+ iniVal+ '\n')
+        return name, iniVal
+    def visitVariableDeclarationStatement(self, ast, c):
+        name = ast['variables'][0]['name']
+        iniVal = self.visit(ast['initialValue'],c)
+        if iniVal ==None: iniVal = 'None'
+        if name not in c[0].globalSym: 
+            c[2].insert(0,(name, 'self'))
+            self.file.write(self.Scope(c[1])+ 'self.'+name+'='+ iniVal+ '\n')
+        return name, iniVal
     def visitBlock(self, ast, c):
         #listKey: ['type', 'statements']
         lst=[]
         for x in ast['statements']:
-            #print(x['type'])
-            self.visit(x, c)
+            
+            stmt = self.visit(x, c)
+    def visitReturnStatement(self, ast,c):
+        stmt = self.visit(ast['children'],c)
+        
+        self.file.write(self.Scope(c[1])+ 'return '+ stmt + '\n')
     def visitIfStatement(self, ast, c): 
         #listKey: ['type', 'condition', 'TrueBody', 'FalseBody']
-        
+        '''
         cond = self.visit(ast['condition'],c)
         lstBranch = c.branch; tail= c.tail;head = c.head; length= tail-head
         if (ast['FalseBody']!=None):
@@ -191,14 +240,49 @@ class SymbolicExecution(BaseVisitor):
         #merge 2 branch
         c.head = head; 
         c.tail = tail2 if (ast['FalseBody']!=None) else tail
-
+        '''
+        cond = self.visit(ast['condition'],c)
+        self.file.write(self.Scope(c[1])+ 'if '+ cond + ':\n')
+        self.visit(ast['TrueBody'], (c[0], c[1]+1, c[2], c[3]))
+        if ast['FalseBody']: 
+            self.file.write(self.Scope(c[1])+ 'else' + ':\n')
+            self.visit(ast['FalseBody'],(c[0], c[1]+1, c[2], c[3]))
+    def visitEmitStatement(self, ast, c): 
+        pass
     def visitExpressionStatement(self, ast, c): 
-        left = self.visit(ast['expression']['left'],c)
-        right= self.visit(ast['expression']['right'],c)
-        op = ast['expression']['operator']
+        '''
+            for x in c.branch[c.head: c.tail]: 
+                x.Stmts.append(left+op+right)
+        '''
+        stmt = self.visit(ast['expression'],c)
+        self.file.write(self.Scope(c[1])+stmt+'\n')
+    def visitBinaryOperation(self, ast,c):
+        left = self.visit(ast['left'],c)
+        right= self.visit(ast['right'],c)
 
-        for x in c.branch[c.head: c.tail]: 
-            x.Stmts.append(left+op+right)
+        op = ast['operator']
+        if op=='&&': op=' and '
+        if op=='||': op=' or '
+        return left+op+right
+    def visitUnaryOperation(self, ast,c):
+        sub= self.visit(ast['subExpression'],c)
+        op = ast['operator']
+        if op=='!': op=' not '
+        if op=='++': op='+=1' ; return sub+op
+        return op+sub
+    def visitElementaryTypeNameExpression(self, ast, c): 
+        return ast['typeName']['name']
+    def Scope(self, scope): 
+        tab = ''
+        for x in range(0, scope): 
+            tab+='\t'
+        return tab
+    def visitMemberAccess(self, ast,c): 
+        if ast['memberName']=='transfer':
+            return 'self.address('+self.visit(ast['expression'],c)+')'+'.'+ast['memberName']
+        return self.visit(ast['expression'],c)+'.'+ast['memberName']
+    def visitIndexAccess(self, ast, c):
+        return self.visit(ast['base'], c)+'['+ self.visit(ast['index'], c) +']'
     def visitForStatement(self, ast, c): 
         #['type', 'initExpression', 'conditionExpression', 'loopExpression', 'body']
         name, initValue = self.visitForInit(ast["initExpression"],c)
@@ -207,10 +291,10 @@ class SymbolicExecution(BaseVisitor):
         listStmts = self.visitBodyFor(ast['body'], c)
         lstStmts=''
         for x in listStmts:
-            lstStmts += '\t\t'+x+'\n' 
+            lstStmts += x+';' 
         for x in c.branch[c.head: c.tail]: 
             x.Stmts.append("for "+ name + " in range(" +str(initValue)+ ','+ str(finalValue)+ ','
-                            + str(step)+ "):\n"
+                            + str(step)+ "):"
                             + lstStmts
                             )
     def visitBodyFor(self, ast, c): 
@@ -237,15 +321,18 @@ class SymbolicExecution(BaseVisitor):
         for x in c: 
             print(x.Conds,x.Stmts)
             print('\n')
-    def visitExpression(self, ast, c): 
-        op = ast['operator']; 
-        symL = self.visit(ast['left'],c); 
-        symR = self.visit(ast['right'],c)
-        return symL+op+symR
-        pass
     def visitIdentifier(self,ast,c):
+        for x in c[2]: 
+            name = x[0]
+            Type = x[1]
+            if ast['name'] == name: 
+                return Type +'.'+ ast['name']
         return ast['name']
     def visitNumberLiteral(self,ast,c): 
+        if ast['number'][:2]=='0x': return '"'+ast['number']+'"'
         return ast['number']
     def visitBooleanLiteral(self, ast,c):
         return str(ast['value'])
+    def visitStringLiteral(self, ast,c):
+        return "'"+ ast['value']+"'"
+    

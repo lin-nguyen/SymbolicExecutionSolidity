@@ -62,17 +62,43 @@ class Node(dict):
         if ast['type'] == 'ExpressionStatement': 
             return ob.visitExpressionStatement(ast,c)
         if ast['type'] == 'BinaryOperation': 
-            return ob.visitExpression(ast,c)
+            return ob.visitBinaryOperation(ast,c)
+        if ast['type'] == 'UnaryOperation': 
+            return ob.visitUnaryOperation(ast,c)
         if ast['type'] == 'Identifier': 
             return ob.visitIdentifier(ast,c)
         if ast['type'] == 'NumberLiteral': 
             return ob.visitNumberLiteral(ast,c)
         if ast['type'] == 'BooleanLiteral': 
             return ob.visitBooleanLiteral(ast,c)
+        if ast['type'] == 'StringLiteral': 
+            return ob.visitStringLiteral(ast,c)
         if ast['type'] == 'FunctionCall': 
             return ob.visitFunctionCall(ast,c)
         if ast['type'] == 'ForStatement': 
             return ob.visitForStatement(ast,c)
+        if ast['type'] == 'ModifierDefinition': 
+            return ob.visitModifierDefinition(ast,c)
+        if ast['type'] == 'EventDefinition': 
+            return ob.visitEventDefinition(ast,c)
+        if ast['type'] == 'Parameter': 
+            return ob.visitParameter(ast,c)
+        if ast['type'] == 'EmitStatement': 
+            return ob.visitEmitStatement(ast,c)
+        if ast['type'] == 'MemberAccess': 
+            return ob.visitMemberAccess(ast,c)
+        if ast['type'] == 'ReturnStatement': 
+            return ob.visitReturnStatement(ast,c)
+        if ast['type'] == 'ElementaryTypeNameExpression': 
+            return ob.visitElementaryTypeNameExpression(ast,c)
+        if ast['type'] == 'IndexAccess': 
+            return ob.visitIndexAccess(ast,c)
+        if ast['type'] == 'VariableDeclarationStatement': 
+            return ob.visitVariableDeclarationStatement(ast,c)
+        if ast['type'] == 'NewExpression': 
+            return ob.visitNewExpression(ast,c)
+        if ast['type'] == 'ArrayTypeName': 
+            return ob.visitArrayTypeName(ast,c)
         
 class AstVisitor(SolidityVisitor):
 
@@ -1025,7 +1051,10 @@ class AstVisitor(SolidityVisitor):
                     name=ctx.getText())
 
     def visitReturnStatement(self, ctx):
-        return self.visit(ctx.expression())
+        #return self.visit(ctx.expression())
+        return Node(ctx=ctx,
+                    type="ReturnStatement",
+                    children=self.visit(ctx.expression()))
 
     def visitTerminal(self, ctx):
         return ctx.getText()
